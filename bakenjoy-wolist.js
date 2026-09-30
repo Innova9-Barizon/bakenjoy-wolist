@@ -5,7 +5,7 @@ const getCookie = (name) => { const value = `; ${document.cookie}`; const parts 
 const deleteCookie = (name) => { document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`; };
 const LOGO_URL = 'https://chatjdevibe.innova9.io/vibe/images/Logo_thin.png';
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const BUILD = 'bnj-mike-20260930-1650mt';
+const BUILD = 'bnj-mike-20260930-1655mt';
 const trimDisplay = (v) => String(v ?? '').trim();
 const displayOrDash = (v) => trimDisplay(v) || '—';
 const parseAisError = (data, fallback) => {
@@ -260,7 +260,7 @@ export default function BakeNJoyWOList() {
           </div>
         </div>
       </main>
-      <div style={{ textAlign: 'center', padding: '8px 16px 16px', fontSize: 11, color: '#6b7280' }}>Build {BUILD}</div>
+      <div style={{ textAlign: 'center', padding: '8px 16px 16px', fontSize: 11, color: '#6b7280' }}>Build {BUILD} · Bake n Joy</div>
       {startConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 28, maxWidth: 420, width: '100%', textAlign: 'center' }}>
