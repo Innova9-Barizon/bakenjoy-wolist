@@ -5,7 +5,7 @@ const getCookie = (name) => { const value = `; ${document.cookie}`; const parts 
 const deleteCookie = (name) => { document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`; };
 const LOGO_URL = 'https://chatjdevibe.innova9.io/vibe/images/Logo_thin.png';
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const BUILD =  + BUILD + r;
+const BUILD = 'bnj-mike-20260930-1650mt';
 const trimDisplay = (v) => String(v ?? '').trim();
 const displayOrDash = (v) => trimDisplay(v) || '—';
 const parseAisError = (data, fallback) => {
@@ -16,7 +16,6 @@ const parseAisError = (data, fallback) => {
   return fallback;
 };
 
-/** Statuses used across Bake n Joy Mike package (create=10, start=MH, and others seen in DV). */
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
   { value: '10', label: '10 — Open / created' },
@@ -77,8 +76,6 @@ export default function BakeNJoyWOList() {
   const loadList = async (overrideToken) => {
     setLoading(true); setError(null);
     try {
-      // REUSE listMyMaintenanceWOs as-is — no orch edits. Status passed when selected (orch input exists).
-      // WO number + description filtered client-side (orch has no description input; avoids NEW orch).
       const body = {};
       if (trimDisplay(woStatus)) body.woStatus = trimDisplay(woStatus);
       const data = await orchFetch('listMyMaintenanceWOs', body, overrideToken);
