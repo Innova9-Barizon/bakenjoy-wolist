@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const setCookie = (name, value, minutes = 30) => { const expires = new Date(Date.now() + minutes * 60 * 1000).toUTCString(); document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`; };
 const getCookie = (name) => { const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`); if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift()); return null; };
 const deleteCookie = (name) => { document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`; };
 const LOGO_URL = 'https://chatjdevibe.innova9.io/vibe/images/Logo_thin.png';
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const BUILD = 'bnj-mike-20260930-1655mt';
 const trimDisplay = (v) => String(v ?? '').trim();
 const displayOrDash = (v) => trimDisplay(v) || '—';
 const parseAisError = (data, fallback) => {
@@ -15,15 +14,6 @@ const parseAisError = (data, fallback) => {
   if (typeof msg === 'string' && msg.trim()) return msg.trim();
   return fallback;
 };
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: '10', label: '10 — Open / created' },
-  { value: 'MH', label: 'MH — Issued & released' },
-  { value: 'M', label: 'M' },
-  { value: 'MJ', label: 'MJ' },
-  { value: 'NB', label: 'NB' },
-];
 
 export default function BakeNJoyWOList() {
   const [username, setUsername] = useState('');
@@ -36,8 +26,7 @@ export default function BakeNJoyWOList() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState('DV');
-  const [searchWo, setSearchWo] = useState('');
-  const [searchDesc, setSearchDesc] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
   const [woStatus, setWoStatus] = useState('');
   const [workOrders, setWorkOrders] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -77,32 +66,16 @@ export default function BakeNJoyWOList() {
     setLoading(true); setError(null);
     try {
       const body = {};
+      if (trimDisplay(assignedTo)) body.assignedTo = trimDisplay(assignedTo);
       if (trimDisplay(woStatus)) body.woStatus = trimDisplay(woStatus);
       const data = await orchFetch('listMyMaintenanceWOs', body, overrideToken);
       if (!data) return;
       const rows = Array.isArray(data.workOrders) ? data.workOrders : [];
       setWorkOrders(rows);
-      setMessage(`${rows.length} work order(s) loaded`);
+      setMessage(`${rows.length} work order(s)`);
     } catch (err) { setError(err.message); setWorkOrders([]); }
     finally { setLoading(false); }
   };
-
-  const filteredWorkOrders = useMemo(() => {
-    const woQ = trimDisplay(searchWo).toLowerCase();
-    const descQ = trimDisplay(searchDesc).toLowerCase();
-    return workOrders.filter((wo) => {
-      if (woQ) {
-        const num = String(wo.orderNumber ?? '').toLowerCase();
-        if (!num.includes(woQ)) return false;
-      }
-      if (descQ) {
-        const blob = [wo.problem, wo.equipmentNumberDescription, wo.woStatusDescription, wo.orTypeDescription]
-          .map((x) => String(x ?? '').toLowerCase()).join(' ');
-        if (!blob.includes(descQ)) return false;
-      }
-      return true;
-    });
-  }, [workOrders, searchWo, searchDesc]);
 
   const openDetail = async (wo) => {
     setSelected(wo); setLoading(true); setError(null);
@@ -157,9 +130,10 @@ export default function BakeNJoyWOList() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#1e3a8a,#3b82f6,#60a5fa)', padding: 20, fontFamily: FONT }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: 40, width: '100%', maxWidth: 420, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <img src={LOGO_URL} alt="Innova9" style={{ height: 56, marginBottom: 12 }} />
+            <img src={LOGO_URL} alt="Innova9" style={{ display: 'block', height: 56, margin: '0 auto 12px', objectFit: 'contain' }} />
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>Bake n Joy — My Work Orders</h1>
             <p style={{ margin: 0, color: '#4b5563', fontSize: 14 }}>JD Edwards EnterpriseOne</p>
+            <span style={{ display: 'inline-block', marginTop: 10, padding: '4px 10px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed', fontSize: 12, fontWeight: 600 }}>listMyMaintenanceWOs</span>
           </div>
           {sessionExpiredMessage && <div style={{ padding: 12, background: '#fffbeb', borderRadius: 8, color: '#92400e', marginBottom: 12 }}>{sessionExpiredMessage}</div>}
           {error && <div style={{ padding: 12, background: '#fef2f2', borderRadius: 8, color: '#dc2626', marginBottom: 12 }}>{error}</div>}
@@ -174,7 +148,6 @@ export default function BakeNJoyWOList() {
             <div><label style={labelStyle}>Password</label><input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
             <button type="submit" disabled={loginLoading} style={{ padding: 14, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 16, cursor: 'pointer' }}>{loginLoading ? 'Signing in…' : 'Sign In'}</button>
           </form>
-          <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#6b7280' }}>{envConfig.jdeEnv} · {BUILD}</div>
         </div>
       </div>
     );
@@ -186,7 +159,7 @@ export default function BakeNJoyWOList() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <img src={LOGO_URL} alt="Innova9" style={{ height: 32 }} />
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Bake n Joy — My Work Orders</h1>
-          <span style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>{filteredWorkOrders.length}</span>
+          <span style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>{workOrders.length}</span>
           <a href="https://chatjdevibe.innova9.io/bakenjoy-home" style={{ fontSize: 13, color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>← Home</a>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -199,35 +172,23 @@ export default function BakeNJoyWOList() {
       <main style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={labelStyle}>WO number</label>
-              <input style={inputStyle} value={searchWo} onChange={(e) => setSearchWo(e.target.value)} placeholder="Search WO #" />
-            </div>
-            <div style={{ flex: '1 1 180px' }}>
-              <label style={labelStyle}>Description</label>
-              <input style={inputStyle} value={searchDesc} onChange={(e) => setSearchDesc(e.target.value)} placeholder="Search description" />
-            </div>
-            <div style={{ flex: '1 1 160px' }}>
-              <label style={labelStyle}>Status</label>
-              <select style={inputStyle} value={woStatus} onChange={(e) => setWoStatus(e.target.value)}>
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+            <div style={{ flex: '1 1 140px' }}><label style={labelStyle}>Assigned to (AN8)</label><input style={inputStyle} value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="optional" /></div>
+            <div style={{ flex: '1 1 100px' }}><label style={labelStyle}>Status</label><input style={inputStyle} value={woStatus} onChange={(e) => setWoStatus(e.target.value)} placeholder="10 / MH" /></div>
             <button type="button" disabled={loading} onClick={() => loadList()} style={{ padding: '10px 18px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>{loading ? 'Loading…' : 'Refresh'}</button>
+            <button type="button" onClick={() => { setWoStatus('10'); }} style={{ padding: '10px 18px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Status 10</button>
           </div>
+          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>Orchs: listMyMaintenanceWOs · getMaintenanceWODetail · startMaintenanceWO (reuse)</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1.2fr)', gap: 16 }}>
           <div>
-            {filteredWorkOrders.length === 0 ? <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 40, textAlign: 'center', color: '#9ca3af' }}>No work orders.</div> : filteredWorkOrders.map((wo, idx) => (
+            {workOrders.length === 0 ? <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 40, textAlign: 'center', color: '#9ca3af' }}>No work orders.</div> : workOrders.map((wo, idx) => (
               <div key={idx} onClick={() => openDetail(wo)} style={{ background: selected?.orderNumber === wo.orderNumber ? '#f5f3ff' : '#fff', border: selected?.orderNumber === wo.orderNumber ? '2px solid #7c3aed' : '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 10, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <strong style={{ color: '#111827' }}>WO {displayOrDash(wo.orderNumber)}</strong>
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: '#eff6ff', color: '#2563eb' }}>{displayOrDash(wo.woStatus)}</span>
                 </div>
                 <div style={{ fontSize: 13, color: '#4b5563', marginTop: 4 }}>{displayOrDash(wo.problem || wo.equipmentNumberDescription)}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Equip {displayOrDash(wo.equipmentNumber)} · Branch {displayOrDash(wo.branch)}</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Equip {displayOrDash(wo.equipmentNumber)} · Branch {displayOrDash(wo.branch)} · ANP {displayOrDash(wo.assignedTo)}</div>
               </div>
             ))}
           </div>
@@ -260,12 +221,11 @@ export default function BakeNJoyWOList() {
           </div>
         </div>
       </main>
-      <div style={{ textAlign: 'center', padding: '8px 16px 16px', fontSize: 11, color: '#6b7280' }}>Build {BUILD} · Bake n Joy</div>
       {startConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 28, maxWidth: 420, width: '100%', textAlign: 'center' }}>
             <h3 style={{ margin: '0 0 8px' }}>Start WO {startConfirm.orderNumber}?</h3>
-            <p style={{ fontSize: 14, color: '#1f2937' }}>Sets status to <strong>MH</strong> (issued &amp; released).</p>
+            <p style={{ fontSize: 14, color: '#1f2937' }}>Calls <strong>startMaintenanceWO</strong> → status <strong>MH</strong>.</p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button type="button" onClick={() => setStartConfirm(null)} style={{ padding: '10px 24px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Cancel</button>
               <button type="button" onClick={() => startWO()} style={{ padding: '10px 24px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Start</button>
