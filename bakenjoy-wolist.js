@@ -65,7 +65,7 @@ export default function BakeNJoyWOList() {
   const orchFetch = async (name, body, overrideToken) => {
     const active = overrideToken || token;
     const response = await fetch(`${envConfig.orchBaseUrl}/${name}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'jde-AIS-Auth': active },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'jde-AIS-Auth': active, 'jde-AIS-Auth-Device': 'ChatJDE' },
       body: JSON.stringify({ deviceName: 'ChatJDE', ...body }),
     });
     if (!response.ok) { if (handleApiError(response)) return null; const d = await response.json().catch(() => null); throw new Error(parseAisError(d, `Failed (${response.status})`)); }
@@ -117,7 +117,7 @@ export default function BakeNJoyWOList() {
     if (!startConfirm) return;
     const wo = startConfirm; setStartConfirm(null); setLoading(true); setError(null);
     try {
-      await orchFetch('startMaintenanceWO', { woNumber: String(wo.orderNumber ?? ''), remark: 'Bake n Joy field start' });
+      await orchFetch('startMaintenanceWOBnJ', { woNumber: String(wo.orderNumber ?? ''), remark: 'Bake n Joy field start' });
       setMessage(`Started WO ${wo.orderNumber} → MH`);
       await loadList();
       await openDetail(wo);

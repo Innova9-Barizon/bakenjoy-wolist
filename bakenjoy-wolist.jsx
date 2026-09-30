@@ -55,7 +55,7 @@ export default function BakeNJoyWOList() {
   const orchFetch = async (name, body, overrideToken) => {
     const active = overrideToken || token;
     const response = await fetch(`${envConfig.orchBaseUrl}/${name}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'jde-AIS-Auth': active },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'jde-AIS-Auth': active, 'jde-AIS-Auth-Device': 'ChatJDE' },
       body: JSON.stringify({ deviceName: 'ChatJDE', ...body }),
     });
     if (!response.ok) { if (handleApiError(response)) return null; const d = await response.json().catch(() => null); throw new Error(parseAisError(d, `Failed (${response.status})`)); }
@@ -91,7 +91,7 @@ export default function BakeNJoyWOList() {
     if (!startConfirm) return;
     const wo = startConfirm; setStartConfirm(null); setLoading(true); setError(null);
     try {
-      await orchFetch('startMaintenanceWO', { woNumber: String(wo.orderNumber ?? ''), remark: 'Bake n Joy field start' });
+      await orchFetch('startMaintenanceWOBnJ', { woNumber: String(wo.orderNumber ?? ''), remark: 'Bake n Joy field start' });
       setMessage(`Started WO ${wo.orderNumber} → MH`);
       await loadList();
       await openDetail(wo);
@@ -177,7 +177,7 @@ export default function BakeNJoyWOList() {
             <button type="button" disabled={loading} onClick={() => loadList()} style={{ padding: '10px 18px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>{loading ? 'Loading…' : 'Refresh'}</button>
             <button type="button" onClick={() => { setWoStatus('10'); }} style={{ padding: '10px 18px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Status 10</button>
           </div>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>Orchs: listMyMaintenanceWOs · getMaintenanceWODetail · startMaintenanceWO (reuse)</p>
+          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}></p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1.2fr)', gap: 16 }}>
           <div>
@@ -225,7 +225,7 @@ export default function BakeNJoyWOList() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 28, maxWidth: 420, width: '100%', textAlign: 'center' }}>
             <h3 style={{ margin: '0 0 8px' }}>Start WO {startConfirm.orderNumber}?</h3>
-            <p style={{ fontSize: 14, color: '#1f2937' }}>Calls <strong>startMaintenanceWO</strong> → status <strong>MH</strong>.</p>
+            <p style={{ fontSize: 14, color: '#1f2937' }}>Set status to <strong>MH</strong> (in process).</p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button type="button" onClick={() => setStartConfirm(null)} style={{ padding: '10px 24px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Cancel</button>
               <button type="button" onClick={() => startWO()} style={{ padding: '10px 24px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Start</button>
