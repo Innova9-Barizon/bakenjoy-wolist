@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 // --- Bake n Joy shared AIS session (SSO across /bakenjoy-* apps) ---
 const BNJ_AUTH_COOKIE = 'bakenjoy_ais_auth';
@@ -71,6 +71,16 @@ const parseAisError = (data, fallback) => {
   return fallback;
 };
 
+/** Maintenance statuses used in Bake n Joy Mike package. */
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: '10', label: '10 — Open / created' },
+  { value: 'MH', label: 'MH — In process' },
+  { value: 'M', label: 'M' },
+  { value: 'MJ', label: 'MJ — Complete' },
+  { value: 'NB', label: 'NB' },
+];
+
 export default function BakeNJoyWOList() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -82,13 +92,14 @@ export default function BakeNJoyWOList() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState('DV');
-  const [assignedTo, setAssignedTo] = useState('');
+  const [globalSearch, setGlobalSearch] = useState('');
   const [woStatus, setWoStatus] = useState('');
   const [workOrders, setWorkOrders] = useState([]);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [message, setMessage] = useState(null);
   const [startConfirm, setStartConfirm] = useState(null);
+  const autoLoadedRef = useRef(false);
 
   const ENVIRONMENTS = {
     DV: { label: 'DV', description: 'Development', aisBaseUrl: 'https://studio.chatjde.ai/jderest/v2', orchBaseUrl: 'https://studio.chatjde.ai/jderest/v3/orchestrator', jdeEnv: 'JDV920', color: '#2563eb' },
@@ -96,7 +107,7 @@ export default function BakeNJoyWOList() {
   };
   const envConfig = ENVIRONMENTS[selectedEnv];
   const ENV_PREF = 'bakenjoy_env_pref';
-  const clearSession = (msg) => { setIsLoggedIn(false); setToken(null); clearBnjAuth(); if (msg) setSessionExpiredMessage(msg); };
+  const clearSession = (msg) => { setIsLoggedIn(false); setToken(null); clearBnjAuth(); autoLoadedRef.current = false; if (msg) setSessionExpiredMessage(msg); };
   const refreshCookieTTL = (t, u) => { refreshBnjAuth({ token: t, username: u, env: selectedEnv, deviceName: BNJ_DEVICE }); };
   const handleApiError = (r) => { if ([444,401,403].includes(r.status)) { clearSession('Your session has expired. Please sign in again.'); return true; } return false; };
 
@@ -124,12 +135,14 @@ export default function BakeNJoyWOList() {
     const data = await response.json(); refreshCookieTTL(active, username); return data;
   };
 
-  const loadList = async (overrideToken) => {
+  const loadList = async (overrideToken, statusOverride) => {
     setLoading(true); setError(null);
     try {
+      // REUSE listMyMaintenanceWOs as-is — no orch edits.
+      // Status uses existing orch input when not All; global search is client-side only.
       const body = {};
-      if (trimDisplay(assignedTo)) body.assignedTo = trimDisplay(assignedTo);
-      if (trimDisplay(woStatus)) body.woStatus = trimDisplay(woStatus);
+      const statusVal = statusOverride !== undefined ? statusOverride : woStatus;
+      if (trimDisplay(statusVal)) body.woStatus = trimDisplay(statusVal);
       const data = await orchFetch('listMyMaintenanceWOs', body, overrideToken);
       if (!data) return;
       const rows = Array.isArray(data.workOrders) ? data.workOrders : [];
@@ -138,6 +151,25 @@ export default function BakeNJoyWOList() {
     } catch (err) { setError(err.message); setWorkOrders([]); }
     finally { setLoading(false); }
   };
+
+  // Auto-find on entry: when SSO cookie restores session, load WO list without clicking Find/Search.
+  useEffect(() => {
+    if (validatingToken || !isLoggedIn || !token || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    loadList(token);
+  }, [validatingToken, isLoggedIn, token]);
+
+  const filteredWorkOrders = useMemo(() => {
+    const q = trimDisplay(globalSearch).toLowerCase();
+    if (!q) return workOrders;
+    return workOrders.filter((wo) => {
+      const blob = [
+        wo.orderNumber, wo.problem, wo.equipmentNumberDescription, wo.equipmentNumber,
+        wo.branch, wo.woStatus, wo.woStatusDescription, wo.orTypeDescription, wo.assignedTo,
+      ].map((x) => String(x ?? '').toLowerCase()).join(' ');
+      return blob.includes(q);
+    });
+  }, [workOrders, globalSearch]);
 
   const openDetail = async (wo) => {
     setSelected(wo); setLoading(true); setError(null);
@@ -173,13 +205,19 @@ export default function BakeNJoyWOList() {
       const an8 = data.userInfo?.addressNumber || data.addressNumber || '';
       writeBnjAuth({ token: newToken, username, env: selectedEnv, addressNumber: an8, deviceName: BNJ_DEVICE });
       setToken(newToken); setIsLoggedIn(true);
+      autoLoadedRef.current = true;
       await loadList(newToken);
     } catch (err) { setError(err.message || 'Login failed.'); }
     finally { setLoginLoading(false); }
   };
   const handleLogout = async () => {
     if (token) { try { await fetch(`${envConfig.aisBaseUrl}/tokenrequest/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }); } catch {} }
-    clearSession(); setUsername(''); setPassword('');
+    clearSession(); setUsername(''); setPassword(''); setWorkOrders([]); setSelected(null); setDetail(null);
+  };
+
+  const onStatusChange = (next) => {
+    setWoStatus(next);
+    loadList(undefined, next);
   };
 
   const inputStyle = { padding: '12px 16px', fontSize: 16, color: '#111827', border: '1px solid #d1d5db', borderRadius: 8, width: '100%', boxSizing: 'border-box' };
@@ -196,7 +234,6 @@ export default function BakeNJoyWOList() {
             <img src={LOGO_URL} alt="Innova9" style={{ display: 'block', height: 56, margin: '0 auto 12px', objectFit: 'contain' }} />
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>Bake n Joy — My Work Orders</h1>
             <p style={{ margin: 0, color: '#4b5563', fontSize: 14 }}>JD Edwards EnterpriseOne</p>
-            <span style={{ display: 'inline-block', marginTop: 10, padding: '4px 10px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed', fontSize: 12, fontWeight: 600 }}>listMyMaintenanceWOs</span>
           </div>
           {sessionExpiredMessage && <div style={{ padding: 12, background: '#fffbeb', borderRadius: 8, color: '#92400e', marginBottom: 12 }}>{sessionExpiredMessage}</div>}
           {error && <div style={{ padding: 12, background: '#fef2f2', borderRadius: 8, color: '#dc2626', marginBottom: 12 }}>{error}</div>}
@@ -222,7 +259,7 @@ export default function BakeNJoyWOList() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <img src={LOGO_URL} alt="Innova9" style={{ height: 32 }} />
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Bake n Joy — My Work Orders</h1>
-          <span style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>{workOrders.length}</span>
+          <span style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>{filteredWorkOrders.length}</span>
           <a href="https://chatjdevibe.innova9.io/bakenjoy-home" style={{ fontSize: 13, color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>← Home</a>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -235,23 +272,36 @@ export default function BakeNJoyWOList() {
       <main style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 140px' }}><label style={labelStyle}>Assigned to (AN8)</label><input style={inputStyle} value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="optional" /></div>
-            <div style={{ flex: '1 1 100px' }}><label style={labelStyle}>Status</label><input style={inputStyle} value={woStatus} onChange={(e) => setWoStatus(e.target.value)} placeholder="10 / MH" /></div>
+            <div style={{ flex: '2 1 240px' }}>
+              <label style={labelStyle}>Search</label>
+              <input
+                style={inputStyle}
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder="WO #, description, equipment, branch…"
+              />
+            </div>
+            <div style={{ flex: '1 1 160px' }}>
+              <label style={labelStyle}>Status</label>
+              <select style={inputStyle} value={woStatus} onChange={(e) => onStatusChange(e.target.value)}>
+                {STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
             <button type="button" disabled={loading} onClick={() => loadList()} style={{ padding: '10px 18px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>{loading ? 'Loading…' : 'Refresh'}</button>
-            <button type="button" onClick={() => { setWoStatus('10'); }} style={{ padding: '10px 18px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Status 10</button>
           </div>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}></p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1.2fr)', gap: 16 }}>
           <div>
-            {workOrders.length === 0 ? <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 40, textAlign: 'center', color: '#9ca3af' }}>No work orders.</div> : workOrders.map((wo, idx) => (
+            {filteredWorkOrders.length === 0 ? <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 40, textAlign: 'center', color: '#9ca3af' }}>{loading ? 'Loading…' : 'No work orders.'}</div> : filteredWorkOrders.map((wo, idx) => (
               <div key={idx} onClick={() => openDetail(wo)} style={{ background: selected?.orderNumber === wo.orderNumber ? '#f5f3ff' : '#fff', border: selected?.orderNumber === wo.orderNumber ? '2px solid #7c3aed' : '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 10, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <strong style={{ color: '#111827' }}>WO {displayOrDash(wo.orderNumber)}</strong>
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: '#eff6ff', color: '#2563eb' }}>{displayOrDash(wo.woStatus)}</span>
                 </div>
                 <div style={{ fontSize: 13, color: '#4b5563', marginTop: 4 }}>{displayOrDash(wo.problem || wo.equipmentNumberDescription)}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Equip {displayOrDash(wo.equipmentNumber)} · Branch {displayOrDash(wo.branch)} · ANP {displayOrDash(wo.assignedTo)}</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Equip {displayOrDash(wo.equipmentNumber)} · Branch {displayOrDash(wo.branch)}</div>
               </div>
             ))}
           </div>
